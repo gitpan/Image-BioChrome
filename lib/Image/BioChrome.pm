@@ -26,7 +26,7 @@ use File::Basename;
 
 use vars qw($VERSION $DEBUG $MOD $VERBOSE $EXTN_ONLY);
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.15 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.16 $ =~ /(\d+)\.(\d+)/);
 
 $MOD = 'Image::BioChrome';
 
@@ -112,6 +112,31 @@ sub alphas {
 
 #============================================================================
 #
+# percents 
+#
+#============================================================================
+
+sub percents {
+	my $self = shift;
+
+	print STDERR "percents called\n" if $DEBUG;
+
+	# must have a valid type
+	return unless $self->{ type };
+
+	# what is the method
+	my $method = "_$self->{ type }_all_colors";
+
+	print STDERR "method [$method]\n" if $DEBUG;
+
+	# calling the method
+	$self->$method('_calc_percent',@_);
+
+}
+
+
+#============================================================================
+#
 # write_file 
 #
 #============================================================================
@@ -129,6 +154,7 @@ sub write_file {
 	$self->_color() if $self->{ colors };
 	$self->_alpha() if $self->{ alphas };
 
+	# the default is to copy the image data
 	$self->{ output_data } = $self->{ data } unless $self->{ output_data };
 
 	my $base = dirname($file);
@@ -198,55 +224,12 @@ sub reset_file {
 
 
 #============================================================================
-#
-# percent
-#
-# calcualte a color value based on percentage of the color
-#
-#============================================================================
-
-sub percent {
-	my $self = shift;
-	my $rgb = shift;
-	my $percent = shift;
-
-	$percent = 100 unless defined $percent;
-
-	my ($r, $g, $b) = $self->rgb($rgb);
-
-	unless (defined $r) {
-		warn "Invalid color [$rgb]\n" if $DEBUG;
-		return $rgb;
-	};
-
-	print STDERR "percent r [$r] g [$g] b [$b]\n" if $DEBUG;
-
-	my $delta = 255 * (($percent - 100) / 100);
-
-	$r += $delta;
-	$g += $delta;
-	$b += $delta;
-
-	$r = $r > 255 ? 255 : $r;
-	$g = $g > 255 ? 255 : $g;
-	$b = $b > 255 ? 255 : $b;
-
-	$r = $r < 0 ? 0 : $r;
-	$g = $g < 0 ? 0 : $g;
-	$b = $b < 0 ? 0 : $b;
-
-	return sprintf('%02x%02x%02x', $r, $g, $b);
-}
-
-
-#============================================================================
 #============================================================================
 #
 # INTERNAL METHODS BELOW
 #
 #============================================================================
 #============================================================================
-
 
 #============================================================================
 #
@@ -363,7 +346,6 @@ sub _valid_color {
 	}
 
 	return;
-
 }
 
 #============================================================================
@@ -387,6 +369,74 @@ sub _split_colors {
 	return \@colors;
 }
 
+
+#============================================================================
+#
+# _gif_all_colors
+#
+# Process the color palette in a gif file and perform some calculation on
+# each color in the palette
+#
+#============================================================================
+
+sub _gif_all_colors {
+	my $self = shift;
+	my $calc = shift || return;
+
+	print STDERR "gif all colors [$calc] called\n" if $DEBUG;
+
+	# get the gif file data
+	my $gif = $self->{ data };
+
+	my $pf = vec($gif, 10, 8);
+
+	# Packed field format
+	#
+	# 10000000 Global Color Table
+	# 01110000 Color Resolution
+	# 00001000 Sorted
+	# 00000111 Size of Global Color Table
+
+	# check that the gif has a global color map for us to change
+	if ($pf & 128) {
+
+		# has a color table so lets get it's size
+		my $cts = $pf & 7;
+
+		# the actual number of colors is the cts number + 1 to the 
+		# power of two
+		$cts = 2 ** ($cts + 1);
+
+		print STDERR "Color Table Size is [$cts]\n" if $DEBUG;
+
+		my $cc = 0;
+
+		# get each color from the map and write it into the gct
+		# until we have no more colors or we have run out of space
+		while ($cc < $cts) {
+
+			# get the red green and blue parts of the color
+			my $r = vec($gif, (($cc * 3) + 13),8);
+			my $g = vec($gif, (($cc * 3) + 14),8);
+			my $b = vec($gif, (($cc * 3) + 15),8);
+
+			# run the calculation function on the color
+			my ($rr, $rg, $rb) = $self->$calc($r, $g, $b, @_);
+
+			# put the colors back into the image
+			vec($gif, (($cc * 3) + 13), 8) = int($rr);
+			vec($gif, (($cc * 3) + 14), 8) = int($rg);
+			vec($gif, (($cc * 3) + 15), 8) = int($rb);
+
+			# increment the color counter
+			$cc++;
+		}
+	}
+
+	# save the gif data ready for output by write file
+	$self->{ output_data } = $gif;
+    return;
+}
 
 #============================================================================
 #
@@ -424,10 +474,41 @@ sub _alpha {
 
 #==============================================================================
 #
+# _calc_percent($r, $g, $b, $percent_r, $percent_g, $percent_b)
+#
+#==============================================================================
+
+sub _calc_percent {
+	my $self = shift;
+	my $c;
+	my $p;
+	my $r;
+
+	# get the args
+	($c->{ r }, $c->{ g }, $c->{ b }, $p->{ r }, $p->{ g }, $p->{ b }) = @_;
+
+	foreach (qw[r g b]) {
+
+		$p->{ $_ } = 100 unless defined $p->{ $_ };
+
+		# do the calculation
+		$r->{ $_ } = $c->{ $_ } * ($p->{ $_ } / 100);
+
+		$r->{ $_ } = 255 if $r->{ $_ } > 255;
+		$r->{ $_ } = 0 if $r->{ $_ } < 0;
+
+	}
+
+	return ($r->{r}, $r->{g}, $r->{b});
+}
+
+
+#==============================================================================
+#
 # _gif_alpha()
 #
 # changes the colors in a gif file based on the alpha channel values of the
-# existing colors.  This is used to recolour greyscale images into more
+# existing colors.  This is used to recolor greyscale images into more
 # palettable graphics
 #
 #==============================================================================
@@ -670,6 +751,10 @@ still subject to change.
 
 	$bio->alphas(.....);
 
+	or
+
+	$bio->percents(100, 100, 50)
+
 	$bio->write_file($file);
 
 	# cause the file to be re-read from the source
@@ -685,7 +770,7 @@ An instance of a Image::BioChrome should be created for each image file that you
 
 my $b = new Image::BioChrome 'test.gif';
 
-In order to then change the colors you need to pass the color change information to the module using either the colors or alphas methods.  Both methods support passing the color information as either a "color string" or an array ref to a set of colors.
+In order to then change the colors you need to call one of the color change methods detailed below.  There the method requires a color string it will accept the input as either a string of color values or as an array ref to a set of colors.
 
 A color string is simply a series of hexadecimal rgb triples separated by character other than 0-9, a-f or #. For example ff0000_00ff00_0000ff is red followed by green followed by blue.
 
@@ -699,8 +784,6 @@ or
 
 $b->colors('ff0000','00ff00','0000ff');
 
-The same rules apply for the setting of alpha colors.
-
 Now you may be asking yourself what the module does with the color information.  The best answer is to look at the documentation in the examples directory.  Explaining how colors are processed in ascii art is really difficult.
 
 Once you have passed the relevant color information the file can be written to disk by calling the write file method.
@@ -708,6 +791,20 @@ Once you have passed the relevant color information the file can be written to d
 $b->write_file('output.gif');
 
 Currently BioChrome will only recolor GIF files.  Any file which it is not capable of being recolored will simply be copied when write_file is called.
+
+=head1 Color Change Methods
+
+=head2 alphas
+
+Expects a color string with upto four colors.  Every color in the color palette will be changed.  The four colors are blended according to the amount of red, green and blue in the image. 
+
+=head2 colors
+
+Expects a set of colors upto the number of colors in the color palette.  The colors will be replaced with the colors given.
+
+=head2 percents ( red_percent, green_percent, blue_percent )
+
+Changes every color in the palette by adjusting the amount each part of the color by the percentages given.
 
 =head1 SEE ALSO
 
@@ -719,7 +816,7 @@ Simon Matthews E<lt>sam@tt2.comE<gt>
 
 =head1 REVISION
 
-$Revision: 1.15 $
+$Revision: 1.16 $
 
 =head1 COPYRIGHT 
 

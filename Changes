@@ -1,5 +1,14 @@
 Revision history for Perl extension Image::BioChrome
 
+1.16
+
+* Changed the internal structure to allow easier implementation of color 
+  calculations that affect every color in the palette
+
+* Added a percent method which allows percentage adjustment of every color in
+  the color palette
+
+
 1.15
 
 * Updated the examples and files in the documentation directory

@@ -13,6 +13,10 @@ SYNOPSIS
 
             $bio->alphas(.....);
 
+            or
+
+            $bio->percents(100, 100, 50)
+
             $bio->write_file($file);
 
             # cause the file to be re-read from the source
@@ -34,10 +38,10 @@ DESCRIPTION
 
     my $b = new Image::BioChrome 'test.gif';
 
-    In order to then change the colors you need to pass the color change
-    information to the module using either the colors or alphas methods.
-    Both methods support passing the color information as either a "color
-    string" or an array ref to a set of colors.
+    In order to then change the colors you need to call one of the color
+    change methods detailed below. There the method requires a color string
+    it will accept the input as either a string of color values or as an
+    array ref to a set of colors.
 
     A color string is simply a series of hexadecimal rgb triples separated
     by character other than 0-9, a-f or #. For example ff0000_00ff00_0000ff
@@ -53,8 +57,6 @@ DESCRIPTION
 
     $b->colors('ff0000','00ff00','0000ff');
 
-    The same rules apply for the setting of alpha colors.
-
     Now you may be asking yourself what the module does with the color
     information. The best answer is to look at the documentation in the
     examples directory. Explaining how colors are processed in ascii art is
@@ -69,6 +71,20 @@ DESCRIPTION
     not capable of being recolored will simply be copied when write_file is
     called.
 
+Color Change Methods
+  alphas
+    Expects a color string with upto four colors. Every color in the color
+    palette will be changed. The four colors are blended according to the
+    amount of red, green and blue in the image.
+
+  colors
+    Expects a set of colors upto the number of colors in the color palette.
+    The colors will be replaced with the colors given.
+
+  percents ( red_percent, green_percent, blue_percent )
+    Changes every color in the palette by adjusting the amount each part of
+    the color by the percentages given.
+
 SEE ALSO
     Apache::BioChrome, Template::Plugin::BioChrome
 
@@ -76,7 +92,7 @@ AUTHOR
     Simon Matthews <sam@tt2.com>
 
 REVISION
-    $Revision: 1.15 $
+    $Revision: 1.16 $
 
 COPYRIGHT
     Copyright (C) 2003 Simon Matthews. All Rights Reserved.

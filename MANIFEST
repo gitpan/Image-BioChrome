@@ -7,8 +7,10 @@ lib/Template/Plugin/BioChrome.pm
 t/01biochrome.t
 t/02template.t
 t/03apache.t
+t/04percent.t
 t/gif/simple.gif
 t/gif/simple.jpg
+t/gif/grey.gif
 t/DummyRequest.pm
 README
 examples/README
